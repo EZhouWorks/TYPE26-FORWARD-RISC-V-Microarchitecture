@@ -7,6 +7,7 @@
 #include <cstdint>
 #include "ALU.h"
 #include "BranchUnit.h"
+#include "JumpUnit.h"
 #include "L1Cache.h"
 
 class Controller {
@@ -21,6 +22,7 @@ public:
     uint32_t Memory_operation = 0;
     RegFile_op RegFile_op;
     Branch_op Branch_op;
+    Jump_op Jump_op;
     
     Controller(){};
     void SetControlSignal(uint32_t decoder_code) {
@@ -33,6 +35,7 @@ public:
         Store_op = NO_STORE_OP;
         RegFile_op = NO_RegFile_OP;
         Branch_op = NO_BRANCH_OP;
+        Jump_op = NO_JUMP_OP;
         switch (decoder_code) { //remember to clean the code
             //R type
             case(0): this->ALU_operation = NO_ALU_OP; ALU_source1 = rs1; ALU_source2 = rs2; Memory_op = NO_MEMORY_OP; Store_op = NO_STORE_OP; RegFile_op = SAVE_ALU_RESULT; break;
@@ -73,6 +76,10 @@ public:
             case(31):this->Branch_op = BGE; ALU_source1 = rs1; ALU_source2 = rs2; break;
             case(32):this->Branch_op = BLTU; ALU_source1 = rs1; ALU_source2 = rs2; break;
             case(33):this->Branch_op = BGEU; ALU_source1 = rs1; ALU_source2 = rs2; break;
+
+            //J type
+            case(36):this->Jump_op = JAL; ALU_operation = ADD_op; ALU_source1 = J_imm; ALU_source2 = command_PC_value; RegFile_op = SAVE_PC_VAL;break;
+            case(37):this->Jump_op = JALR; ALU_operation = ADD_op; ALU_source1 = rs1; ALU_source2 = I_12bit_imm; RegFile_op = SAVE_PC_VAL;break;
         }
     }
 };

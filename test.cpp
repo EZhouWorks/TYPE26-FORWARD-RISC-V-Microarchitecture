@@ -60,17 +60,40 @@ void varifyPipeline(CPUcore &core, L2Cache& l2cache, RAM &ram) {
         // // addi x4,x0,2
         // 0b00000000001000000000001000010011
 
-        // addi x1,x0,2
-        0b00000000001000000000000010010011,
+        // // addi x1,x0,2
+        // 0b00000000001000000000000010010011,
+        //
+        // // addi x1,x1,-1
+        // 0b11111111111100001000000010010011,
+        //
+        // // bne x1,x0,-4
+        // 0b11111110000000001001111011100011
 
-        // addi x1,x1,-1
-        0b11111111111100001000000010010011,
+        // // addi x1,x0,1
+        // 0b00000000000100000000000010010011,
+        //
+        // // jal x5,8
+        // 0b00000000100000000000001011101111,
+        //
+        // // addi x1,x0,99
+        // 0b00000110001100000000000010010011,
+        //
+        // // addi x2,x0,2
+        // 0b00000000001000000000000100010011
+        // addi x5,x0,12
+        0b00000000110000000000001010010011,
 
-        // bne x1,x0,-4
-        0b11111110000000001001111011100011
+        // jalr x1,0(x5)
+        0b00000000000000101000000011100111,
+
+        // addi x2,x0,99
+        0b00000110001100000000000100010011,
+
+        // addi x3,x0,3
+        0b00000000001100000000000110010011
     };
 
-    ram.loadCommands(commands, 3);
+    ram.loadCommands(commands, 4);
     cout<<core.l1_cache.Load(READWORD,UNSIGN,0,l2cache,ram);
 
 
@@ -83,10 +106,9 @@ void varifyPipeline(CPUcore &core, L2Cache& l2cache, RAM &ram) {
 
 }
 
-
 int main() {
     RAM ram = RAM();
     L2Cache l2cache = L2Cache(ram);
-    CPUcore core0 = CPUcore(0);
+    CPUcore core0 = CPUcore(0,15);
     varifyPipeline(core0,l2cache,ram);
 }

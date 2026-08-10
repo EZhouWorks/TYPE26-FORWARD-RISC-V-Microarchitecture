@@ -10,4 +10,5 @@ add_executable(RISCV_CPU
         src/ForwardingUnit.h
         src/StallUnit.h
         src/BranchUnit.h
+        src/JumpUnit.h
 )

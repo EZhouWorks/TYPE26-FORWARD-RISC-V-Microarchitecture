@@ -11,6 +11,7 @@ public:
     uint32_t PC_value = 0;
     uint32_t End_value;
     int branch_taken = 0; //indicates if branch op activated
+    int jump_taken = 0;
 
     int enable;
     ProgramCounter(uint32_t entry_point,uint32_t end_point) {
@@ -35,6 +36,9 @@ public:
         cout<<"Command PC Value = "<<command_PC_value<<endl;
         cout<<"Shift amount = "<<int32_t(shift_amount)<<endl;
         cout<<"BRANCHED TO "<<PC_value<<endl;
+    }
+    void Jump(uint32_t target_addr) {
+        PC_value = target_addr;
     }
 
 };

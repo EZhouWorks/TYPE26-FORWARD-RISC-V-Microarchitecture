@@ -8,6 +8,8 @@
 #include "Controller.h"
 #include "L1Cache.h"
 #include "BranchUnit.h"
+#include "JumpUnit.h"
+
 struct IF_ID_data {
     int valid;
     int enable;
@@ -35,6 +37,8 @@ struct ID_EX_data {
     Branch_op Branch_op;
     int32_t B_imm;
     uint32_t command_PC_value;
+    Jump_op jump_op;
+    uint32_t J_imm;
 };
 struct EX_MEM_data {
     int valid;
@@ -62,6 +66,7 @@ struct MEM_WB_data {
     uint32_t data;
     RegFile_op RegFile_op;
     Memory_op Memory_op;
+    uint32_t command_PC_value;
 };
 
 class PipelineRegisters {

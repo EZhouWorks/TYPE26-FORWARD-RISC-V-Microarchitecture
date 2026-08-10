@@ -26,13 +26,14 @@ enum ALU_op
     NO_ALU_OP,
 };
 
-enum ALU_source { //indicate 2nd num from rs2/imm
+enum ALU_source {
     rs1,
     rs2,
     I_12bit_imm,
     I_shamt_imm,
-    store_imm
-
+    store_imm,
+    J_imm,
+    command_PC_value
 };
 
 

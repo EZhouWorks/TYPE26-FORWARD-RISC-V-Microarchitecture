@@ -10,6 +10,7 @@ using namespace std;
 enum RegFile_op {
     SAVE_DATA, //save data loaded from cache/mem
     SAVE_ALU_RESULT,
+    SAVE_PC_VAL, //save PC value for JAL/JALR
     NO_RegFile_OP
 };
 class RegisterFile {
@@ -44,10 +45,11 @@ public:
         }
     }
 
-    void operate(RegFile_op RegFile_op,uint32_t data, uint32_t ALU_result,uint32_t addr) {
+    void operate(RegFile_op RegFile_op,uint32_t data, uint32_t ALU_result,uint32_t addr,uint32_t command_PC_value) {
         switch (RegFile_op) {
             case SAVE_DATA:write(addr,data);break;
             case SAVE_ALU_RESULT:write(addr,ALU_result);break;
+            case SAVE_PC_VAL:write(addr,command_PC_value);break;
             case NO_RegFile_OP:return;
             default: throw runtime_error("Unknown Register File Operation");
         }

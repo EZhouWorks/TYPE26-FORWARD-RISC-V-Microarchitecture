@@ -6,6 +6,7 @@
 #define RISC_V_CPU_SIMULATOR_CPUCORE_H
 #include <iostream>
 #include <cstdint>
+#include <bitset>
 #include "ALU.h"
 #include "Decoder.h"
 #include "Controller.h"
@@ -17,7 +18,8 @@
 #include "ProgramCounter.h"
 #include "StallUnit.h"
 #include "BranchUnit.h"
-#include <bitset>
+#include "JumpUnit.h"
+
 class CPUcore {
 public:
     EnableSignals enable_signal;
@@ -31,11 +33,14 @@ public:
     PipelineRegisters pipeline_registers_read = PipelineRegisters();  //this pipeline register set is read only
     ForwardingUnit forwarding_unit = ForwardingUnit();
     StallUnit stall_unit = StallUnit();
-    ProgramCounter program_counter = ProgramCounter(0b0,11);
+    ProgramCounter program_counter;
     BranchUnit branch_unit = BranchUnit();
+    JumpUnit jump_unit = JumpUnit();
 
-    CPUcore(int core_id) {
-        this->core_id = core_id;
+    CPUcore(int core_id,int end_point)
+        :core_id(core_id),
+         program_counter(0,end_point)
+    {
         this->enable_signal.FetchEnable = 1;
         this->enable_signal.DecodeEnable = 1;
         this->enable_signal.ExecuteEnable = 1;
@@ -54,23 +59,31 @@ public:
     }
 
     void Fetch(L2Cache& l2cache,RAM& ram) {
+        cout<<"JUMP TAKEN AT FETCH = "<<program_counter.jump_taken<<endl;
         if (program_counter.enable == 0) {  //stall
-            cout<<"FETCHED MACHINE CODE "<<pipeline_registers_write.IF_ID_register.machine_code<<endl;
+            cout<<"FETCHED MACHINE CODE "<<bitset<32>(pipeline_registers_write.IF_ID_register.machine_code)<<endl;
             return;
         }
         else {
-            if (program_counter.CheckValid() == 1 and pipeline_registers_write.IF_ID_register.enable == 1 or program_counter.branch_taken == 1) {
+            if (program_counter.CheckValid() == 1 and pipeline_registers_write.IF_ID_register.enable == 1 or program_counter.branch_taken == 1 or program_counter.jump_taken == 1) {
                 //Normal
                 pipeline_registers_write.IF_ID_register.machine_code = CPULoadWord(program_counter.PC_value,l2cache,ram);
                 pipeline_registers_write.IF_ID_register.command_PC_value = program_counter.PC_value;
                 pipeline_registers_write.IF_ID_register.valid = 1;
-                cout<<"FETCHED MACHINE CODE "<<pipeline_registers_write.IF_ID_register.machine_code<<endl;
+                cout<<"FETCHED MACHINE CODE "<<bitset<32>(pipeline_registers_write.IF_ID_register.machine_code)<<endl;
 
                 //Branch
                 if (program_counter.branch_taken == 1) {
                     program_counter.branch_taken = 0;
                     pipeline_registers_write.IF_ID_register.machine_code = CPULoadWord(program_counter.PC_value,l2cache,ram);
                     cout<<"Branched to "<<bitset<32>(pipeline_registers_write.IF_ID_register.machine_code)<<endl;
+                }
+
+                //Jump
+                if (program_counter.jump_taken == 1) {
+                    program_counter.jump_taken = 0;
+                    pipeline_registers_write.IF_ID_register.machine_code = CPULoadWord(program_counter.PC_value,l2cache,ram);
+                    cout<<"Jumped to "<<bitset<32>(pipeline_registers_write.IF_ID_register.machine_code)<<endl;
                 }
 
                 if (program_counter.enable == 1) {
@@ -172,6 +185,8 @@ public:
             pipeline_registers_write.ID_EX_register.Branch_op = controller.Branch_op;
             pipeline_registers_write.ID_EX_register.B_imm = decoder.B_imm;
             pipeline_registers_write.ID_EX_register.command_PC_value = pipeline_registers_read.IF_ID_register.command_PC_value;
+            pipeline_registers_write.ID_EX_register.jump_op = controller.Jump_op;
+            pipeline_registers_write.ID_EX_register.J_imm = decoder.J_imm;
             pipeline_registers_write.ID_EX_register.valid = 1;
 
         }
@@ -200,6 +215,8 @@ public:
             Branch_op branch_op = pipeline_registers_read.ID_EX_register.Branch_op;
             int32_t B_imm = pipeline_registers_read.ID_EX_register.B_imm;
             uint32_t command_PC_value = pipeline_registers_read.ID_EX_register.command_PC_value;
+            Jump_op jump_op = pipeline_registers_read.ID_EX_register.jump_op;
+            uint32_t J_imm = pipeline_registers_read.ID_EX_register.J_imm;
 
             //ALU forwarding check
             cout<<"RS1 ADDR= "<<rs1_addr<<endl;
@@ -212,6 +229,7 @@ public:
                 rs2_input_val = pipeline_registers_read.EX_MEM_register.ALU_result;
                 //cout<<"FORWARDED FROM ALU RESULT"<<endl;
             }
+
             //WB bypass
             if (pipeline_registers_write.MEM_WB_register.valid == 1 and forwarding_unit.ForwardingCompare(rs1_addr,pipeline_registers_read.MEM_WB_register.rd_addr) == 1) {
                 //check if data comes from ALU result or loaded from MEM
@@ -247,6 +265,8 @@ public:
                     };break;
                 case rs2:
                     ALU_result = alu.operate(alu_op,rs1_input_val, I_12bit_imm);break;
+                case ALU_source::J_imm:
+                    ALU_result = alu.operate(alu_op, J_imm, command_PC_value);break;
                 default: throw runtime_error("Unknown ALU source 1");
             }
 
@@ -257,6 +277,19 @@ public:
             pipeline_registers_write.ID_EX_register.valid = branch_unit.operate(branch_op,rs1_input_val,rs2_input_val,B_imm,program_counter,command_PC_value);
             pipeline_registers_write.IF_ID_register.valid = pipeline_registers_write.ID_EX_register.valid;
             cout<<"BU set VALID"<<pipeline_registers_write.IF_ID_register.valid<<endl;
+
+            //JumpUnit execution
+            cout<<"ALU result for jump target at EXE = "<<ALU_result<<endl;
+            cout<<"PC value at EXE before jump = "<<program_counter.PC_value<<endl;
+            cout<<"Command PC value at EXE before jump = "<<command_PC_value<<endl;
+            pipeline_registers_write.EX_MEM_register.command_PC_value = jump_unit.operate(jump_op,command_PC_value,ALU_result, program_counter); //command_PC_value register is used by JumpUnit to save command_addr+4.
+            if (program_counter.jump_taken == 1) {
+                pipeline_registers_write.IF_ID_register.valid = 0;
+                pipeline_registers_write.ID_EX_register.valid = 0;
+                cout<<"PC value at EXE = "<<program_counter.PC_value<<endl;
+            }
+            cout<<"J_IMM = "<<J_imm<<endl;
+            cout<<"command PC value after jump = "<<pipeline_registers_write.EX_MEM_register.command_PC_value<<endl;
 
             //pass on data from ID/EX Register
             pipeline_registers_write.EX_MEM_register.ALU_result = ALU_result;
@@ -295,6 +328,7 @@ public:
             pipeline_registers_write.MEM_WB_register.Store_op = pipeline_registers_read.EX_MEM_register.Store_op;
             pipeline_registers_write.MEM_WB_register.RegFile_op = pipeline_registers_read.EX_MEM_register.RegFile_op;
             pipeline_registers_write.MEM_WB_register.Memory_op = pipeline_registers_read.EX_MEM_register.Memory_op;
+            pipeline_registers_write.MEM_WB_register.command_PC_value = pipeline_registers_read.EX_MEM_register.command_PC_value;
             pipeline_registers_write.MEM_WB_register.valid = 1;
         }
         else {
@@ -311,10 +345,13 @@ public:
             uint32_t rd_addr = pipeline_registers_read.MEM_WB_register.rd_addr;
             uint32_t data = pipeline_registers_read.MEM_WB_register.data;
             RegFile_op RegFile_op = pipeline_registers_read.MEM_WB_register.RegFile_op;
-
+            uint32_t command_PC_value = pipeline_registers_write.MEM_WB_register.command_PC_value;
+            cout<<"command PC value at WB = "<<command_PC_value<<endl;
+            cout<<"REGFILE OP at WB = "<<RegFile_op<<endl;
+            cout<<"RD ADDR at WB = "<<rd_addr<<endl;
             uint32_t rs2_val = pipeline_registers_read.MEM_WB_register.rs2_val;
             cout<<"WB data = "<<ALU_result<<endl;
-            registerFile.operate(RegFile_op,data,ALU_result,rd_addr);
+            registerFile.operate(RegFile_op,data,ALU_result,rd_addr,command_PC_value);
             l1_cache.Store(Store_op,Store_addr,data, l2cache, ram);
         }
     }
