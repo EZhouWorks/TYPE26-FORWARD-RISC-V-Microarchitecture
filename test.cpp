@@ -99,7 +99,8 @@ void varifyPipeline(CPUcore &core, L2Cache& l2cache, RAM &ram) {
 
     for (int i=0;i<10;i++) {
         cout<<endl;
-        cout<<"Cycle "<<i<<endl;
+        cout<<"================================"<<endl;
+        cout<<"->Cycle "<<i<<endl;
         core.Step(l2cache,ram);
     }
     core.registerFile.dumpRawValue();
