@@ -14,9 +14,9 @@ enum RegFile_op {
     NO_RegFile_OP
 };
 class RegisterFile {
-private:
-    array<uint32_t,32> registers;
 public:
+    array<uint32_t,32> registers;
+
     RegisterFile() {
         for (int i=0; i<32; i++) {
             registers[i] = 00000000000000000000000000000000;

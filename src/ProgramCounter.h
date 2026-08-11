@@ -12,8 +12,8 @@ public:
     uint32_t End_value;
     int branch_taken = 0; //indicates if branch op activated
     int jump_taken = 0;
-
     int enable;
+
     ProgramCounter(uint32_t entry_point,uint32_t end_point) {
         this->PC_value = entry_point;
         this->End_value = end_point;

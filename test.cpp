@@ -14,7 +14,7 @@ void dumpSelectedReg(CPUcore core, int reg1_index, int reg2_index, int reg3_inde
     cout<<"Reg "<<reg3_index<<" :"<<core.registerFile.read(reg3_index)<<endl;
 }
 
-void varifyPipeline(CPUcore &core, L2Cache& l2cache, RAM &ram) {
+void RunCommands(CPUcore &core, L2Cache& l2cache, RAM &ram) {
     uint32_t commands[] = {
         // //double stall test
         // // lw x1,0(x0)
@@ -30,7 +30,7 @@ void varifyPipeline(CPUcore &core, L2Cache& l2cache, RAM &ram) {
         // 0b00000000001100011000001000110011
 
         //branch test
-        // // // addi x1,x0,5
+        // // addi x1,x0,5
         // 0b00000000010100000000000010010011,
         //
         // // addi x2,x0,5
@@ -94,22 +94,42 @@ void varifyPipeline(CPUcore &core, L2Cache& l2cache, RAM &ram) {
     };
 
     ram.loadCommands(commands, 4);
-    cout<<core.l1_cache.Load(READWORD,UNSIGN,0,l2cache,ram);
+    cout<<core.l1_cache.Load(READWORD,UNSIGN,0,l2cache,ram)<<endl;
 
 
-    for (int i=0;i<10;i++) {
+
+    // for (int i=0;i<20;i++) {
+    //     cout<<endl;
+    //     cout<<"================================"<<endl;
+    //     cout<<"->Cycle "<<i<<endl;
+    //     core.Step(l2cache,ram);
+    // }
+    // core.registerFile.dumpRawValue();
+
+    int min_cycles = 0;
+    for (int i=0;i<size(commands)*5;i++) {
         cout<<endl;
         cout<<"================================"<<endl;
         cout<<"->Cycle "<<i<<endl;
         core.Step(l2cache,ram);
+
+        if (i != 0 and core.pipeline_registers_read.IF_ID_register.valid == 0
+            and core.pipeline_registers_read.ID_EX_register.valid == 0
+            and core.pipeline_registers_read.EX_MEM_register.valid == 0
+            and core.pipeline_registers_read.MEM_WB_register.valid == 0) {
+            min_cycles = i+1;
+            break;
+            }
     }
     core.registerFile.dumpRawValue();
+    cout<<"In total "<<min_cycles<<" cycles operated"<<endl;
+    cout<<min_cycles<<" is the minimum cycles to fully run the commands"<<endl;
 
 }
 
 int main() {
     RAM ram = RAM();
     L2Cache l2cache = L2Cache(ram);
-    CPUcore core0 = CPUcore(0,15);
-    varifyPipeline(core0,l2cache,ram);
+    CPUcore core0 = CPUcore(0,11);
+    RunCommands(core0,l2cache,ram);
 }

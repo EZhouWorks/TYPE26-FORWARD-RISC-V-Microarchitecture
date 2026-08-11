@@ -59,13 +59,21 @@ public:
     }
 
     void Fetch(L2Cache& l2cache,RAM& ram) {
-        cout<<"FETCH VALID "<<pipeline_registers_write.IF_ID_register.valid<<endl<<endl;
+        cout<<"FETCH VALID "<<pipeline_registers_write.IF_ID_register.valid<<endl;
+        cout<<"IF_IF_register.enable = "<<pipeline_registers_write.IF_ID_register.enable<<endl;
+        cout<<"program_counter.checkvalid = "<<program_counter.CheckValid()<<endl;
+        cout<<"branch taken = "<<program_counter.branch_taken<<endl;
+        cout<<"jump taken = "<<program_counter.jump_taken<<endl;
+        cout<<"program_counter.enable = "<<program_counter.enable<<endl;
         if (program_counter.enable == 0) {  //stall
             cout<<"MACHINE CODE AT FETCH: "<<bitset<32>(pipeline_registers_write.IF_ID_register.machine_code)<<endl;
+            cout<<"hit stall cond"<<endl;
             return;
         }
         else {
-            if (program_counter.CheckValid() == 1 and pipeline_registers_write.IF_ID_register.enable == 1 or program_counter.branch_taken == 1 or program_counter.jump_taken == 1) {
+            if (program_counter.CheckValid() == 1 or program_counter.branch_taken == 1 or program_counter.jump_taken == 1) {
+                cout<<"hit cond"<<endl;
+            //if (program_counter.CheckValid() == 1 and pipeline_registers_write.IF_ID_register.enable == 1 or program_counter.branch_taken == 1 or program_counter.jump_taken == 1) {
                 //Normal
                 pipeline_registers_write.IF_ID_register.machine_code = CPULoadWord(program_counter.PC_value,l2cache,ram);
                 pipeline_registers_write.IF_ID_register.command_PC_value = program_counter.PC_value;
@@ -91,15 +99,19 @@ public:
                 }
             }
             else {
+                cout<<"hit valid = 0 cond"<<endl;
                 pipeline_registers_write.IF_ID_register.valid = 0;
+                cout<<"IF_ID_register.valid = "<<pipeline_registers_write.IF_ID_register.valid<<endl;
             }
         }
+        cout<<endl;
 
     }
 
     void Decode() {
         cout<<"DECODE VALID "<<pipeline_registers_read.IF_ID_register.valid<<endl;
         cout<<"DECODING "<<bitset<32>(pipeline_registers_read.IF_ID_register.machine_code)<<endl;
+        cout<<"decode.insert_bubble = "<<decoder.insert_bubble<<endl;
 
         if (pipeline_registers_read.IF_ID_register.valid == 1 or decoder.insert_bubble == 1) { //stall has higher priority than normal drain procedure
             controller.SetControlSignal(decoder.Decode(pipeline_registers_read.IF_ID_register.machine_code)); //decode and generate control singal
@@ -187,6 +199,7 @@ public:
 
         }
         else {
+            cout<<"hit decode valid = 0 cond"<<endl;
             pipeline_registers_write.ID_EX_register.valid = 0;
         }
         cout<<endl;
@@ -261,8 +274,12 @@ public:
             }
 
             //BranchUnit execution
-            pipeline_registers_write.ID_EX_register.valid = branch_unit.operate(branch_op,rs1_input_val,rs2_input_val,B_imm,program_counter,command_PC_value);
-            pipeline_registers_write.IF_ID_register.valid = pipeline_registers_write.ID_EX_register.valid;
+
+            branch_unit.operate(branch_op,rs1_input_val,rs2_input_val,B_imm,program_counter,command_PC_value);
+            if (program_counter.branch_taken == 1) {
+                pipeline_registers_write.IF_ID_register.valid = 0;
+                pipeline_registers_write.ID_EX_register.valid = 0;
+            }
 
             //JumpUnit execution
             pipeline_registers_write.EX_MEM_register.command_PC_value = jump_unit.operate(jump_op,command_PC_value,ALU_result, program_counter); //command_PC_value register is used by JumpUnit to save command_addr+4.
