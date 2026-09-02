@@ -28,6 +28,8 @@ This is a C++ based multicore RISC-V CPU simulation
 7st stage: benchmark:  
 1.CPI  
 
+8st stage: FPGA implementation:
+
 **NOTICE**  
 A double pipeline register structure is implemented in this CPU due to the potential uncertainty   
 that might be introduced if multiprocess is used to simulate the simultaneous behavior of the 5 stages  
