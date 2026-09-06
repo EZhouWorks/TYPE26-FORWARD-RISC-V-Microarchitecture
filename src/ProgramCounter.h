@@ -40,6 +40,9 @@ public:
     void Jump(uint32_t target_addr) {
         PC_value = target_addr;
     }
+    void SetValue(uint32_t target_addr) {
+        PC_value = target_addr;
+    }
 
 };
 #endif //RISC_V_CPU_SIMULATOR_PROGRAMCOUNTER_H

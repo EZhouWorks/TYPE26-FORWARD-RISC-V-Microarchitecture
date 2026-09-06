@@ -62,7 +62,6 @@ public:
 
     void dumpRawValue() {
         for (int i=0; i<32; i++) {
-            // cout<<"reg "<<i<<": 0b"<<bitset<32>(registers[i])<<endl;
             cout<<"reg "<<i<<": "<<registers[i]<<endl;
         }
     }

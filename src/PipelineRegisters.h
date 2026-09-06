@@ -15,6 +15,8 @@ struct IF_ID_data {
     int enable;
     uint32_t machine_code;
     uint32_t command_PC_value;
+    int branch_prediction;
+    uint32_t branch_command_addr;
 };
 struct ID_EX_data {
     int valid;
@@ -39,6 +41,8 @@ struct ID_EX_data {
     uint32_t command_PC_value;
     Jump_op jump_op;
     uint32_t J_imm;
+    int branch_prediction;
+    uint32_t branch_command_addr;
 };
 struct EX_MEM_data {
     int valid;

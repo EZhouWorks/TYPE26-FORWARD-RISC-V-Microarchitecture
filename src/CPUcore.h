@@ -19,6 +19,7 @@
 #include "StallUnit.h"
 #include "BranchUnit.h"
 #include "JumpUnit.h"
+#include "BranchPredictor.h"
 
 class CPUcore {
 public:
@@ -36,6 +37,8 @@ public:
     ProgramCounter program_counter;
     BranchUnit branch_unit = BranchUnit();
     JumpUnit jump_unit = JumpUnit();
+    BranchPredictor branch_predictor = BranchPredictor(1);
+
 
     CPUcore(int core_id,int end_point)
         :core_id(core_id),
@@ -73,7 +76,7 @@ public:
         else {
             if (program_counter.CheckValid() == 1 or program_counter.branch_taken == 1 or program_counter.jump_taken == 1) {
                 cout<<"hit cond"<<endl;
-            //if (program_counter.CheckValid() == 1 and pipeline_registers_write.IF_ID_register.enable == 1 or program_counter.branch_taken == 1 or program_counter.jump_taken == 1) {
+
                 //Normal
                 pipeline_registers_write.IF_ID_register.machine_code = CPULoadWord(program_counter.PC_value,l2cache,ram);
                 pipeline_registers_write.IF_ID_register.command_PC_value = program_counter.PC_value;
@@ -83,17 +86,32 @@ public:
                 //Branch
                 if (program_counter.branch_taken == 1) {
                     program_counter.branch_taken = 0;
-                    pipeline_registers_write.IF_ID_register.machine_code = CPULoadWord(program_counter.PC_value,l2cache,ram);
                     cout<<"BRANCHED TO "<<bitset<32>(pipeline_registers_write.IF_ID_register.machine_code)<<endl;
                 }
 
                 //Jump
                 if (program_counter.jump_taken == 1) {
                     program_counter.jump_taken = 0;
-                    pipeline_registers_write.IF_ID_register.machine_code = CPULoadWord(program_counter.PC_value,l2cache,ram);
                     cout<<"JUMPED TO "<<bitset<32>(pipeline_registers_write.IF_ID_register.machine_code)<<endl;
                 }
 
+                //Branch Prediction
+                if (branch_predictor.enable == 1) {
+                    if (branch_predictor.PreTypeDecode(pipeline_registers_write.IF_ID_register.machine_code) == 1) {
+                        pipeline_registers_write.IF_ID_register.branch_command_addr = program_counter.PC_value;
+                        if (branch_predictor.predict(pipeline_registers_write.IF_ID_register.command_PC_value) == 1) { //taken
+                            uint32_t offset = branch_predictor.PreCommandAddrDecode(pipeline_registers_write.IF_ID_register.machine_code);
+                            program_counter.StepForward(offset);
+                            pipeline_registers_write.IF_ID_register.branch_prediction = 1;
+                            return;
+                        }
+                        else { //not taken
+                            pipeline_registers_write.IF_ID_register.branch_prediction = 0;
+                        }
+                    }
+                }
+
+                //PC steps forward
                 if (program_counter.enable == 1) {
                     program_counter.StepForward(4);
                 }
@@ -195,6 +213,8 @@ public:
             pipeline_registers_write.ID_EX_register.command_PC_value = pipeline_registers_read.IF_ID_register.command_PC_value;
             pipeline_registers_write.ID_EX_register.jump_op = controller.Jump_op;
             pipeline_registers_write.ID_EX_register.J_imm = decoder.J_imm;
+            pipeline_registers_write.ID_EX_register.branch_prediction = pipeline_registers_read.IF_ID_register.branch_prediction;
+            pipeline_registers_write.ID_EX_register.branch_command_addr = pipeline_registers_read.IF_ID_register.branch_command_addr;
             pipeline_registers_write.ID_EX_register.valid = 1;
 
         }
@@ -226,6 +246,8 @@ public:
             uint32_t command_PC_value = pipeline_registers_read.ID_EX_register.command_PC_value;
             Jump_op jump_op = pipeline_registers_read.ID_EX_register.jump_op;
             uint32_t J_imm = pipeline_registers_read.ID_EX_register.J_imm;
+            int branch_prediction = pipeline_registers_read.ID_EX_register.branch_prediction;
+            uint32_t branch_command_addr = pipeline_registers_read.ID_EX_register.branch_command_addr;
 
             //ALU forwarding check
             if (pipeline_registers_write.EX_MEM_register.valid == 1 and forwarding_unit.ForwardingCompare(rs1_addr,pipeline_registers_read.EX_MEM_register.rd_addr) == 1) {
@@ -274,11 +296,27 @@ public:
             }
 
             //BranchUnit execution
+            int actual_taken = branch_unit.operate(branch_op,rs1_input_val,rs2_input_val,B_imm,program_counter,command_PC_value,branch_predictor.enable);
 
-            branch_unit.operate(branch_op,rs1_input_val,rs2_input_val,B_imm,program_counter,command_PC_value);
-            if (program_counter.branch_taken == 1) {
-                pipeline_registers_write.IF_ID_register.valid = 0;
-                pipeline_registers_write.ID_EX_register.valid = 0;
+            //Branch Predictor execution
+            if (branch_predictor.enable == 1 and branch_op != NO_BRANCH_OP) {
+                //update PHT
+                branch_predictor.updatePHT(command_PC_value,actual_taken);
+                //update GHR
+                branch_predictor.GlobalHistoryRegister = (branch_predictor.GlobalHistoryRegister << 1) | actual_taken;
+
+                //misprediction
+                if (actual_taken != branch_prediction) {
+                    pipeline_registers_write.IF_ID_register.valid = 0;
+                    pipeline_registers_write.ID_EX_register.valid = 0;
+
+                    if (actual_taken == 1 and branch_prediction == 0) {
+
+                    }
+                    if (actual_taken == 0 and branch_prediction == 1) {
+                        program_counter.SetValue(branch_command_addr+4);
+                    }
+                }
             }
 
             //JumpUnit execution
