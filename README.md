@@ -1,4 +1,4 @@
-# EZhouArch RISC-V-CPU-Simulator
+# FORWARD RISC-V-CPU
 This is a C++ based multicore RISC-V CPU simulation
 
 1st stage implementation: basic structure 
