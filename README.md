@@ -1,4 +1,4 @@
-# FORWARD RISC-V-CPU
+# FORWARD RISC-V Microarchitecture
 This is a C++ based multicore RISC-V CPU simulation
 
 1st stage implementation: basic structure 
