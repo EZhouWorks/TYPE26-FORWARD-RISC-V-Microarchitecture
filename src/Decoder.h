@@ -7,6 +7,7 @@ class Decoder {
 public:
     uint32_t rd,rs1,rs2,I_shamt_imm,SYS_code,I_12bit_imm,Store_imm,B_imm, J_imm = 0b0;
     int insert_bubble = 0; // allow Decoder to run for bubbles while Fetch starts draining.
+    int StoreLoad_bubble = 0; // sep L-S stall from other types of stall
     uint32_t Decode(uint32_t machine_code) {
         //machine code dispart (addr)
         uint32_t opcode = machine_code & 0x7F;

@@ -1,3 +1,4 @@
+//L2 Cache is currently not implemented as a private cache! Missing L1 will not result in visiting L2
 //L2 Cache does not have dirty data
 //256kB L2 Cache
 #ifndef RISC_V_CPU_SIMULATOR_L2CACHE_H

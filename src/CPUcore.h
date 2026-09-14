@@ -7,6 +7,8 @@
 #include <iostream>
 #include <cstdint>
 #include <bitset>
+#include <filesystem>
+
 #include "ALU.h"
 #include "Decoder.h"
 #include "Controller.h"
@@ -37,7 +39,7 @@ public:
     ProgramCounter program_counter;
     BranchUnit branch_unit = BranchUnit();
     JumpUnit jump_unit = JumpUnit();
-    BranchPredictor branch_predictor = BranchPredictor(1);
+    BranchPredictor branch_predictor = BranchPredictor(0);
 
 
     CPUcore(int core_id,int end_point)
@@ -135,47 +137,59 @@ public:
             controller.SetControlSignal(decoder.Decode(pipeline_registers_read.IF_ID_register.machine_code)); //decode and generate control singal
 
             //Stall check
-            if (controller.ALU_source1 == rs1) {
-                if (pipeline_registers_read.ID_EX_register.valid == 1 and stall_unit.checkStall(pipeline_registers_read.ID_EX_register,decoder.rs1) == 1) {
-                    pipeline_registers_write.ID_EX_register.ALU_operation = NO_ALU_OP; //create bubble, NOP will be passed down for every stall cycle
-                    pipeline_registers_write.ID_EX_register.Memory_op = NO_MEMORY_OP;
-                    pipeline_registers_write.ID_EX_register.Store_op = NO_STORE_OP;
-                    stall_unit.SetStall(program_counter,decoder,pipeline_registers_write.IF_ID_register);
-                    pipeline_registers_write.ID_EX_register.valid = 0;
-                    return;
+            if (controller.Store_op == NO_STORE_OP) {
+                if (controller.ALU_source1 == rs1) {
+                    if (pipeline_registers_read.ID_EX_register.valid == 1 and stall_unit.checkStall(pipeline_registers_read.ID_EX_register,decoder.rs1) == 1) {
+                        pipeline_registers_write.ID_EX_register.ALU_operation = NO_ALU_OP; //create bubble, NOP will be passed down for every stall cycle
+                        pipeline_registers_write.ID_EX_register.Memory_op = NO_MEMORY_OP;
+                        pipeline_registers_write.ID_EX_register.Store_op = NO_STORE_OP;
+                        stall_unit.SetStall(program_counter,decoder,pipeline_registers_write.IF_ID_register);
+                        pipeline_registers_write.ID_EX_register.valid = 0;
+                        return;
+                    }
+                    else if (decoder.StoreLoad_bubble == 0){
+                        //cout<<"Stall End1"<<endl;
+                        stall_unit.ExitStall(program_counter,decoder,pipeline_registers_write.IF_ID_register);
+                    }
                 }
-                else {
-                    //cout<<"Stall End1"<<endl;
+                if (controller.ALU_source2 == rs2) {
+                    if (pipeline_registers_read.ID_EX_register.valid == 1 and stall_unit.checkStall(pipeline_registers_read.ID_EX_register,decoder.rs2) == 1) {
+                        pipeline_registers_write.ID_EX_register.ALU_operation = NO_ALU_OP;
+                        pipeline_registers_write.ID_EX_register.Memory_op = NO_MEMORY_OP;
+                        pipeline_registers_write.ID_EX_register.Store_op = NO_STORE_OP;
+                        stall_unit.SetStall(program_counter, decoder,pipeline_registers_write.IF_ID_register);
+                        pipeline_registers_write.ID_EX_register.valid = 0;
+                        return;
+                    }
+                    else if (decoder.StoreLoad_bubble == 0) {
+                        //cout<<"Stall End3"<<endl;
+                        stall_unit.ExitStall(program_counter,decoder,pipeline_registers_write.IF_ID_register);
+                    }
+                }
+            }
+            else {
+                //Load-Store Stall
+                if (pipeline_registers_read.ID_EX_register.valid == 1 and pipeline_registers_read.ID_EX_register.Memory_op != NO_MEMORY_OP) {
+                    if (pipeline_registers_read.ID_EX_register.valid == 1 and stall_unit.CheckLoadStoreStall(decoder.rs2,pipeline_registers_read.ID_EX_register.rd_addr) == 1) {
+                        cout<<"LS STALL"<<endl;
+                        pipeline_registers_write.ID_EX_register.ALU_operation = NO_ALU_OP;
+                        pipeline_registers_write.ID_EX_register.Memory_op = NO_MEMORY_OP;
+                        pipeline_registers_write.ID_EX_register.Store_op = NO_STORE_OP;
+                        stall_unit.SetStall(program_counter, decoder,pipeline_registers_write.IF_ID_register);
+                        pipeline_registers_write.ID_EX_register.valid = 0;
+                        return;
+                    }
+                }
+                else if (decoder.StoreLoad_bubble == 0) {
+                    cout<<"EXIT LS Stall"<<endl;
                     stall_unit.ExitStall(program_counter,decoder,pipeline_registers_write.IF_ID_register);
                 }
             }
-            else if (controller.ALU_source1 == rs2) {
-                if (pipeline_registers_read.ID_EX_register.valid == 1 and stall_unit.checkStall(pipeline_registers_read.ID_EX_register,decoder.rs2) == 1) {
-                    pipeline_registers_write.ID_EX_register.ALU_operation = NO_ALU_OP;
-                    pipeline_registers_write.ID_EX_register.Memory_op = NO_MEMORY_OP;
-                    pipeline_registers_write.ID_EX_register.Store_op = NO_STORE_OP;
-                    stall_unit.SetStall(program_counter,decoder,pipeline_registers_write.IF_ID_register);
-                    pipeline_registers_write.ID_EX_register.valid = 0;
-                    return;
-                }
-                else {
-                    //cout<<"Stall End2"<<endl;
-                    stall_unit.ExitStall(program_counter,decoder,pipeline_registers_write.IF_ID_register);
-                }
-            }
-            if (controller.ALU_source2 == rs2) {
-                if (pipeline_registers_read.ID_EX_register.valid == 1 and stall_unit.checkStall(pipeline_registers_read.ID_EX_register,decoder.rs2) == 1) {
-                    pipeline_registers_write.ID_EX_register.ALU_operation = NO_ALU_OP;
-                    pipeline_registers_write.ID_EX_register.Memory_op = NO_MEMORY_OP;
-                    pipeline_registers_write.ID_EX_register.Store_op = NO_STORE_OP;
-                    stall_unit.SetStall(program_counter, decoder,pipeline_registers_write.IF_ID_register);
-                    pipeline_registers_write.ID_EX_register.valid = 0;
-                    return;
-                }
-                else {
-                    //cout<<"Stall End3"<<endl;
-                    stall_unit.ExitStall(program_counter,decoder,pipeline_registers_write.IF_ID_register);
-                }
+
+            //Store-Load Stall unfreeze
+            if (pipeline_registers_read.ID_EX_register.Memory_op != NO_MEMORY_OP and pipeline_registers_read.EX_MEM_register.Store_op == NO_STORE_OP and decoder.StoreLoad_bubble == 1) {
+                pipeline_registers_write.EX_MEM_register.prev_store_op = 0;
+                stall_unit.ExitStoreLoadStall(program_counter,decoder,pipeline_registers_write.IF_ID_register,pipeline_registers_write.ID_EX_register);
             }
 
             //store data and control signal into pipeline register
@@ -236,6 +250,7 @@ public:
             uint32_t rs2_val = pipeline_registers_read.ID_EX_register.rs2_val;
             uint32_t rs1_addr = pipeline_registers_read.ID_EX_register.rs1_addr;
             uint32_t rs2_addr = pipeline_registers_read.ID_EX_register.rs2_addr;
+            uint32_t rd_addr = pipeline_registers_read.ID_EX_register.rd_addr;
             uint32_t rs1_input_val = rs1_val;
             uint32_t rs2_input_val = rs2_val;
             uint32_t I_12bit_imm = pipeline_registers_read.ID_EX_register.I_12bit_imm;
@@ -248,16 +263,8 @@ public:
             uint32_t J_imm = pipeline_registers_read.ID_EX_register.J_imm;
             int branch_prediction = pipeline_registers_read.ID_EX_register.branch_prediction;
             uint32_t branch_command_addr = pipeline_registers_read.ID_EX_register.branch_command_addr;
-
-            //ALU forwarding check
-            if (pipeline_registers_write.EX_MEM_register.valid == 1 and forwarding_unit.ForwardingCompare(rs1_addr,pipeline_registers_read.EX_MEM_register.rd_addr) == 1) {
-                rs1_input_val = pipeline_registers_read.EX_MEM_register.ALU_result; //fetch ALU result from the read register of the next stage
-                //cout<<"FORWARDED FROM ALU RESULT"<<endl;
-            }
-            if (pipeline_registers_write.EX_MEM_register.valid == 1 and forwarding_unit.ForwardingCompare(rs2_addr,pipeline_registers_read.EX_MEM_register.rd_addr) == 1) {
-                rs2_input_val = pipeline_registers_read.EX_MEM_register.ALU_result;
-                //cout<<"FORWARDED FROM ALU RESULT"<<endl;
-            }
+            Memory_op memory_op = pipeline_registers_read.ID_EX_register.Memory_op;
+            Store_op store_op = pipeline_registers_read.ID_EX_register.Store_op;
 
             //WB bypass
             if (pipeline_registers_write.MEM_WB_register.valid == 1 and forwarding_unit.ForwardingCompare(rs1_addr,pipeline_registers_read.MEM_WB_register.rd_addr) == 1) {
@@ -277,6 +284,18 @@ public:
                     rs2_input_val = pipeline_registers_read.MEM_WB_register.data;
                 }
             }
+
+            //ALU forwarding check
+            if (pipeline_registers_write.EX_MEM_register.valid == 1 and forwarding_unit.ForwardingCompare(rs1_addr,pipeline_registers_read.EX_MEM_register.rd_addr) == 1) {
+                rs1_input_val = pipeline_registers_read.EX_MEM_register.ALU_result; //fetch ALU result from the read register of the next stage
+                //cout<<"FORWARDED FROM ALU RESULT"<<endl;
+            }
+            if (pipeline_registers_write.EX_MEM_register.valid == 1 and forwarding_unit.ForwardingCompare(rs2_addr,pipeline_registers_read.EX_MEM_register.rd_addr) == 1) {
+                rs2_input_val = pipeline_registers_read.EX_MEM_register.ALU_result;
+                //cout<<"FORWARDED FROM ALU RESULT"<<endl;
+            }
+
+            cout<<"RS1 INPUT VAL "<<rs1_input_val<<endl;
 
             //ALU execution
             switch (alu_source1) {
@@ -327,6 +346,15 @@ public:
                 // cout<<"PC value at EXE = "<<program_counter.PC_value<<endl;
             }
 
+
+            if (memory_op != NO_MEMORY_OP and pipeline_registers_read.EX_MEM_register.Store_op != NO_STORE_OP) {
+                if (stall_unit.CheckLoadStoreStall(pipeline_registers_read.EX_MEM_register.ALU_result, ALU_result)) {
+                    pipeline_registers_write.IF_ID_register.valid = 0;
+                    pipeline_registers_write.ID_EX_register.valid = 0;
+                    stall_unit.SetStoreLoadStall(program_counter, decoder,pipeline_registers_write.IF_ID_register,pipeline_registers_write.ID_EX_register);
+                }
+            }
+
             //pass on data from ID/EX Register
             pipeline_registers_write.EX_MEM_register.ALU_result = ALU_result;
             pipeline_registers_write.EX_MEM_register.Memory_op = pipeline_registers_read.ID_EX_register.Memory_op;
@@ -364,6 +392,7 @@ public:
             pipeline_registers_write.MEM_WB_register.RegFile_op = pipeline_registers_read.EX_MEM_register.RegFile_op;
             pipeline_registers_write.MEM_WB_register.Memory_op = pipeline_registers_read.EX_MEM_register.Memory_op;
             pipeline_registers_write.MEM_WB_register.command_PC_value = pipeline_registers_read.EX_MEM_register.command_PC_value;
+            pipeline_registers_write.MEM_WB_register.rs2_val = pipeline_registers_read.EX_MEM_register.rs2_val;
             pipeline_registers_write.MEM_WB_register.valid = 1;
         }
         else {
@@ -384,8 +413,10 @@ public:
             uint32_t command_PC_value = pipeline_registers_write.MEM_WB_register.command_PC_value;
             uint32_t rs2_val = pipeline_registers_read.MEM_WB_register.rs2_val;
 
+            cout<<"RS2 val "<<rs2_val<<endl;
+            cout<<"ALU result "<<ALU_result<<endl;
             registerFile.operate(RegFile_op,data,ALU_result,rd_addr,command_PC_value);
-            l1_cache.Store(Store_op,Store_addr,data, l2cache, ram);
+            l1_cache.Store(Store_op,Store_addr,rs2_val, l2cache, ram);
         }
     }
 
@@ -410,6 +441,9 @@ public:
         if (pipeline_registers_write.MEM_WB_register.enable == 1) {
             pipeline_registers_read.MEM_WB_register = pipeline_registers_write.MEM_WB_register;
         }
+
+        //codes below are for debug purposes only
+        cout<<"RAM at 104 "<<l1_cache.readWord(104,l2cache,ram)<<endl;
     }
 };
 

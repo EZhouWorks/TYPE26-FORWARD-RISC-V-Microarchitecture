@@ -57,6 +57,8 @@ struct EX_MEM_data {
     uint32_t rs2_val;
     RegFile_op RegFile_op;
     uint32_t command_PC_value;
+    int prev_store_op;
+    uint32_t store_op_target_addr;
 };
 struct MEM_WB_data {
     int valid;
@@ -68,9 +70,11 @@ struct MEM_WB_data {
     uint32_t rs1_val;
     uint32_t rs2_val;
     uint32_t data;
+    uint32_t store_data;
     RegFile_op RegFile_op;
     Memory_op Memory_op;
     uint32_t command_PC_value;
+
 };
 
 class PipelineRegisters {

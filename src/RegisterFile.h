@@ -11,6 +11,7 @@ enum RegFile_op {
     SAVE_DATA, //save data loaded from cache/mem
     SAVE_ALU_RESULT,
     SAVE_PC_VAL, //save PC value for JAL/JALR
+    LOAD_DATA,
     NO_RegFile_OP
 };
 class RegisterFile {
@@ -50,6 +51,7 @@ public:
             case SAVE_DATA:write(addr,data);break;
             case SAVE_ALU_RESULT:write(addr,ALU_result);break;
             case SAVE_PC_VAL:write(addr,command_PC_value);break;
+            // case LOAD_DATA: read(reg_index);break;
             case NO_RegFile_OP:return;
             default: throw runtime_error("Unknown Register File Operation");
         }

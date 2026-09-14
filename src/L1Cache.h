@@ -43,6 +43,25 @@ public:
         }
     }
 
+    CacheLine LoadCacheBlockFromRAM(uint32_t addr, RAM& ram) {
+        uint32_t block = addr/BLOCK_SIZE;
+        uint32_t index = block%CACHE_LINES;
+        uint32_t tag = block/CACHE_LINES;
+
+        uint32_t blockStartAddr = block*BLOCK_SIZE;
+        uint32_t blockEndAddr = blockStartAddr+BLOCK_SIZE-1;
+
+        for (int i = blockStartAddr; i <= blockEndAddr; i++) { //load RAM block into cache line
+            cachelines[index].bytes[i-blockStartAddr] = ram.readCell(i);
+        }
+
+        cachelines[index].valid = 1;
+        cachelines[index].tag = tag;
+        cachelines[index].dirty = 0;
+
+        return cachelines[index];
+    }
+
     uint32_t readWord(uint32_t addr,L2Cache& l2cache,RAM& ram) { //loads data from ram if missed, can also be used to access data in L1Cache
         uint32_t block = addr/64;
         uint32_t index = block%256;
@@ -58,14 +77,8 @@ public:
                 | ((uint32_t)target_cacheLine.bytes[offset+2] << 16)
                 | ((uint32_t)target_cacheLine.bytes[offset+3] << 24);
         }
-        else { //miss, read and load from L2 Cache
-            //cout<<"miss L1"<<endl;
-            target_cacheLine = l2cache.readFullData(addr,ram);
-            cachelines[index] = target_cacheLine;
-            cachelines[index].valid = 1;
-            cachelines[index].tag = tag;
-            cachelines[index].dirty = 0;
-
+        else { //miss, read and load from ram
+            target_cacheLine = LoadCacheBlockFromRAM(addr, ram);
             return
                   (uint32_t)target_cacheLine.bytes[offset]
                 | ((uint32_t)target_cacheLine.bytes[offset+1] << 8)
@@ -87,14 +100,9 @@ public:
                   (uint32_t)target_cacheLine.bytes[offset]
                 | ((uint32_t)target_cacheLine.bytes[offset+1] << 8);
         }
-        else { //miss, read and load from L2 Cache
+        else { //miss, read and load from RAM
             cout<<"miss L1"<<endl;
-            target_cacheLine = l2cache.readFullData(addr,ram);
-            cachelines[index] = target_cacheLine;
-            cachelines[index].valid = 1;
-            cachelines[index].tag = tag;
-            cachelines[index].dirty = 0;
-
+            target_cacheLine = LoadCacheBlockFromRAM(addr,ram);
             return
                   (uint32_t)target_cacheLine.bytes[offset]
                 | ((uint32_t)target_cacheLine.bytes[offset+1] << 8);
@@ -115,30 +123,25 @@ public:
         }
         else { //miss, read and load from L2 Cache
             //cout<<"miss L1"<<endl;
-            target_cacheLine = l2cache.readFullData(addr,ram);
-            cachelines[index] = target_cacheLine;
-            cachelines[index].valid = 1;
-            cachelines[index].tag = tag;
-            cachelines[index].dirty = 0;
-
+            target_cacheLine = LoadCacheBlockFromRAM(addr,ram);
             return
                   (uint32_t)target_cacheLine.bytes[offset];
         }
     }
 
     //fucntions below all relate to STORE command
-    int checkL2Hit(uint32_t addr,L2Cache& l2cache,RAM& ram) { //check if store command hit L2 cache
-        uint32_t block = addr/BLOCK_SIZE_L2;
-        uint32_t index = block%CACHE_LINES_L2;
-        uint32_t tag = block/CACHE_LINES_L2;
-        CacheLine& target_cacheLine = l2cache.cachelines[index];
-        if (target_cacheLine.valid == 1 and target_cacheLine.tag == tag) {
-            return 1;
-        }
-        else {
-            return 0;
-        }
-    }
+    // int checkL2Hit(uint32_t addr,L2Cache& l2cache,RAM& ram) { //check if store command hit L2 cache
+    //     uint32_t block = addr/BLOCK_SIZE_L2;
+    //     uint32_t index = block%CACHE_LINES_L2;
+    //     uint32_t tag = block/CACHE_LINES_L2;
+    //     CacheLine& target_cacheLine = l2cache.cachelines[index];
+    //     if (target_cacheLine.valid == 1 and target_cacheLine.tag == tag) {
+    //         return 1;
+    //     }
+    //     else {
+    //         return 0;
+    //     }
+    // }
 
     void Store(Store_op Store_op, uint32_t addr, uint32_t data,L2Cache& l2cache,RAM& ram) {
         uint32_t block = addr/64;
@@ -159,7 +162,7 @@ public:
                             ram.memory[blockStartAddr+i] = target_cacheLine.bytes[i];
                         }
                     }
-                    cachelines[index] = l2cache.readFullData(addr,ram);
+                    cachelines[index] = LoadCacheBlockFromRAM(addr,ram);
                     cachelines[index].bytes[offset] = uint8_t(data);
                     cachelines[index].valid = 1;
                     cachelines[index].tag = tag;
@@ -181,7 +184,7 @@ public:
                             ram.memory[blockStartAddr+i] = target_cacheLine.bytes[i];
                         }
                     }
-                    cachelines[index] = l2cache.readFullData(addr,ram);
+                    cachelines[index] = LoadCacheBlockFromRAM(addr,ram);
                     cachelines[index].bytes[offset] = lowByte;
                     cachelines[index].bytes[offset+1] = highByte;
                     cachelines[index].valid = 1;
@@ -208,7 +211,7 @@ public:
                             ram.memory[blockStartAddr+i] = target_cacheLine.bytes[i];
                         }
                     }
-                    cachelines[index] = l2cache.readFullData(addr,ram);
+                    cachelines[index] = LoadCacheBlockFromRAM(addr,ram);
                     target_cacheLine.bytes[offset] = byte0;
                     target_cacheLine.bytes[offset+1] = byte1;
                     target_cacheLine.bytes[offset+2] = byte2;
